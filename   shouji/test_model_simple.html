@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.16.3/dist/ort.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .log { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>模型测试</h1>
+    <div id="log"></div>
+
+    <script>
+        // 禁用WebAssembly
+        ort.env.wasm.enabled = false;
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const p = document.createElement('p');
+            p.className = 'log';
+            p.textContent = message;
+            logDiv.appendChild(p);
+            console.log(message);
+        }
+
+        async function testModel() {
+            log('开始测试模型...');
+
+            try {
+                log('正在加载模型...');
+                const model = await ort.InferenceSession.create('model/model.onnx', {
+                    executionProviders: ['cpu'],
+                    graphOptimizationLevel: 'all'
+                });
+
+                log('模型加载成功');
+                log('输入名称: ' + model.inputNames.join(', '));
+                log('输出名称: ' + model.outputNames.join(', '));
+
+                // 创建测试输入
+                const inputShape = [1, 3, 640, 640];
+                const inputSize = inputShape.reduce((a, b) => a * b);
+                const inputData = new Float32Array(inputSize);
+                
+                for (let i = 0; i < inputSize; i++) {
+                    inputData[i] = Math.random();
+                }
+
+                const inputTensor = new ort.Tensor('float32', inputData, inputShape);
+                
+                // 运行推理
+                log('正在运行推理...');
+                const startTime = performance.now();
+                const results = await model.run({ images: inputTensor });
+                const endTime = performance.now();
+                
+                log('推理时间: ' + (endTime - startTime).toFixed(2) + ' ms');
+
+                // 分析输出
+                for (const [name, tensor] of Object.entries(results)) {
+                    log('输出 ' + name + ':');
+                    log('  形状: ' + tensor.dims.join('x'));
+                    log('  数据类型: ' + tensor.type);
+                    log('  数据长度: ' + tensor.data.length);
+                    
+                    // 显示前20个数据点
+                    const data = Array.from(tensor.data).slice(0, 20);
+                    log('  前20个数据: ' + data.join(', '));
+                }
+
+                log('测试完成');
+
+            } catch (error) {
+                log('错误: ' + error.message);
+                console.error('测试失败:', error);
+            }
+        }
+
+        // 运行测试
+        testModel();
+    </script>
+</body>
+</html>
